@@ -1,0 +1,105 @@
+#include <DHT.h>
+#include <ESP8266WiFi.h>
+
+#define DHTPIN 0
+String apiKey = "I9UPLOMFXFHPAZVE";
+const char* ssid = "POCO M6 Pro 5G";
+const char* pass = "KenoBolbo?";
+const char* server = "api.thingspeak.com";
+int sm;
+int outputpin = A0;
+float humi;
+float temp;
+const int httpPort = 80;
+const int red = 4;
+const int green = 14;
+DHT dht(DHTPIN, DHT11);
+WiFiClient client;
+
+void setup() {
+  Serial.begin(115200);
+  delay(10);
+
+  dht.begin();
+
+  Serial.println("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print("*");
+  }
+  Serial.println("");
+  Serial.println("***WiFi connected***");
+  pinMode(red, OUTPUT);
+  pinMode(green, OUTPUT);
+  digitalWrite(red, LOW);
+  digitalWrite(green, LOW);
+}
+int i = 0;
+void loop() {
+  int analogValue = analogRead(outputpin);
+  humi = dht.readHumidity();
+  temp = dht.readTemperature();
+  sm = analogValue;
+  sm = map(sm, 750, 180, 0, 100);
+  Serial.print("\n\nData Serial No: ");
+  Serial.println(i);
+  i++;
+  if (sm < 0) {
+    sm = 0;
+  }
+  if (client.connect(server, 80))  //   "184.106.153.149" or api.thingspeak.com
+  {
+    String sendData = apiKey + "&field1=" + String(temp) + "&field2=" + String(humi) + "&field3=" + String(10) + "\r\n\r\n";
+    client.print("POST /update HTTP/1.1\n");
+    client.print("Host: api.thingspeak.com\n");
+    client.print("Connection: close\n");
+    client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
+    client.print("Content-Type: application/x-www-form-urlencoded\n");
+    client.print("Content-Length: ");
+    client.print(sendData.length());
+    client.print("\n\n");
+    client.print(sendData);
+
+    Serial.print("Temperature: ");
+    Serial.print(temp);
+    Serial.print("deg C. Humidity: ");
+    Serial.print(humi);
+    Serial.print("Soil moisture content: ");
+    Serial.print(sm);
+    Serial.println("%. Connecting to Thingspeak.");
+  }
+
+
+  Serial.println("Sending....");
+
+  if (humi >= 45) {
+    Serial.print("\nChances of Rainfall - Rechecking after 5 secs. ");
+    digitalWrite(red, HIGH);
+    digitalWrite(green, HIGH);
+    delay(5000);
+  } else {
+    if (sm >= 60) {
+      Serial.print("\nMoisture content sufficient - Rechecking after 5 secs. ");
+      digitalWrite(red, HIGH);
+      digitalWrite(green, HIGH);
+      delay(5000);
+    } else {
+      if (temp > 25) {
+        Serial.print("\nPump on for 10 secs. ");
+        digitalWrite(red, LOW);
+        digitalWrite(green, LOW);
+        delay(10000);
+      } else {
+        Serial.print("\nPump on for 8 secs. ");
+        digitalWrite(red, LOW);
+        digitalWrite(green, LOW);
+        delay(8000);
+      }
+    }
+  }
+  client.stop();
+  delay(1000);
+}
